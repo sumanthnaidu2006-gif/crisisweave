@@ -14,7 +14,7 @@ type Tab = 'dashboard' | 'scenarios' | 'about';
 type AppMode = 'mobile' | 'desktop' | 'split';
 
 function App() {
-  const [appMode, setAppMode] = useState<AppMode>('split'); // Default to Combined View so user immediately sees both!
+  const [appMode, setAppMode] = useState<AppMode>('mobile'); // Default to Mobile Version as requested!
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
