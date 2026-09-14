@@ -1,16 +1,12 @@
 package com.crisisweave.prism;
 
 import com.crisisweave.model.*;
-import com.crisisweave.agents.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
 
 @Service
 public class GeminiService {
@@ -23,14 +19,13 @@ public class GeminiService {
             return getFallbackCascadeTimeline();
         }
         try {
-            // Simulated HTTP call, fallback on error
             return getFallbackCascadeTimeline();
         } catch (Exception e) {
             return getFallbackCascadeTimeline();
         }
     }
 
-    public List<String> rankActions(List<String> allActions, DisasterEvent event) {
+    public List<RecommendedAction> rankActions(List<RecommendedAction> allActions, DisasterEvent event) {
         if (apiKey == null || apiKey.isEmpty()) {
             return getFallbackRankedActions(allActions);
         }
@@ -101,7 +96,13 @@ public class GeminiService {
         );
     }
     
-    private List<String> getFallbackRankedActions(List<String> allActions) {
-        return allActions != null ? new ArrayList<>(allActions) : Arrays.asList("Evacuate", "Shelter");
+    private List<RecommendedAction> getFallbackRankedActions(List<RecommendedAction> allActions) {
+        if (allActions != null && !allActions.isEmpty()) {
+            return new ArrayList<>(allActions);
+        }
+        return Arrays.asList(
+            new RecommendedAction("Evacuate immediate high-risk zones", "Evacuation"),
+            new RecommendedAction("Shelter in place if trapped", "Emergency")
+        );
     }
 }

@@ -39,11 +39,11 @@ public class PrismCoordinator {
                 .collect(Collectors.toList());
 
         List<CascadeEvent> timeline = geminiService.generateCascadeTimeline(event, assessments);
-        List<String> allActions = assessments.stream()
+        List<RecommendedAction> allActions = assessments.stream()
                 .filter(a -> a.getRecommendedActions() != null)
                 .flatMap(a -> a.getRecommendedActions().stream())
                 .collect(Collectors.toList());
-        List<String> rankedActions = geminiService.rankActions(allActions, event);
+        List<RecommendedAction> rankedActions = geminiService.rankActions(allActions, event);
         String historicalScenario = geminiService.matchHistoricalScenario(event);
         
         String overallRiskLevel = event.getSeverity() != null ? event.getSeverity().name() : "HIGH";
