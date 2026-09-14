@@ -30,6 +30,7 @@ import { useDeviceStatus } from '../../hooks/useDeviceStatus';
 import { useEscapeSafetyTimer } from '../../hooks/useEscapeSafetyTimer';
 import { useCallPermissions } from '../../hooks/useCallPermissions';
 import { EmergencyCallPermissionModal } from './EmergencyCallPermissionModal';
+import { LocationSearchModal } from '../common/LocationSearchModal';
 
 interface Props {
   simulationResult: SimulationResult | null;
@@ -66,6 +67,7 @@ export const MobileApp: React.FC<Props> = ({
   const { permissions, requestCallPermissions } = useCallPermissions();
   const [pendingCall, setPendingCall] = useState<{ number: string; name: string; isAI?: boolean } | null>(null);
   const [isCallPermissionModalOpen, setIsCallPermissionModalOpen] = useState(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
 
   const liveLocation = useLiveLocation();
   const deviceStatus = useDeviceStatus();
@@ -265,6 +267,7 @@ export const MobileApp: React.FC<Props> = ({
               liveLocation={liveLocation}
               escapeTimer={escapeTimer}
               deviceStatus={deviceStatus}
+              onOpenLocationSearch={() => setIsLocationModalOpen(true)}
             />
           )}
 
@@ -274,6 +277,7 @@ export const MobileApp: React.FC<Props> = ({
               liveLocation={liveLocation}
               onSetLocation={(lat, lng, name) => liveLocation.setManualPin(lat, lng, name)}
               onResetGPS={() => liveLocation.resetToDeviceGPS()}
+              onOpenLocationSearch={() => setIsLocationModalOpen(true)}
               escapeTimer={escapeTimer}
             />
           )}
@@ -307,6 +311,16 @@ export const MobileApp: React.FC<Props> = ({
             />
           )}
         </div>
+
+        {/* 📍 Precision Location Search & GPS Calibration Modal */}
+        <LocationSearchModal 
+          isOpen={isLocationModalOpen}
+          onClose={() => setIsLocationModalOpen(false)}
+          currentLocation={liveLocation}
+          onSetLocation={(lat, lng, name) => liveLocation.setManualPin(lat, lng, name)}
+          onRequestGPS={liveLocation.requestDeviceGPS}
+          onResetGPS={liveLocation.resetToDeviceGPS}
+        />
 
         {/* 🛡️ Emergency Call Permissions Authorization Gate Modal */}
         <EmergencyCallPermissionModal 

@@ -11,7 +11,8 @@ import {
   CloudSun,
   XCircle,
   Robot,
-  Hourglass
+  Hourglass,
+  Crosshair
 } from '@phosphor-icons/react';
 import { SimulationResult, DisasterType, SeverityLevel } from '../../types';
 import { saveAlert } from '../../services/alertStore';
@@ -27,11 +28,13 @@ interface Props {
   onClearAlert: () => void;
   onTriggerAICall?: () => void;
   onInitiateCall?: (target: { number: string; name: string; isAI?: boolean }) => void;
+  onOpenLocationSearch?: () => void;
   liveLocation?: {
     lat: number;
     lng: number;
     locationName: string;
     isLiveGPS: boolean;
+    isPinned?: boolean;
   };
   escapeTimer?: EscapeTimerState;
   deviceStatus?: DeviceStatus;
@@ -44,6 +47,7 @@ export const MobileHome: React.FC<Props> = ({
   onClearAlert,
   onTriggerAICall,
   onInitiateCall,
+  onOpenLocationSearch,
   liveLocation,
   escapeTimer,
   deviceStatus
@@ -51,7 +55,7 @@ export const MobileHome: React.FC<Props> = ({
   const [sosActive, setSosActive] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [quickMsgSent, setQuickMsgSent] = useState<string | null>(null);
-  const { emergencySOS, medium: hapticMedium, success: hapticSuccess, warning: hapticWarning } = useHaptics();
+  const { emergencySOS, medium: hapticMedium, success: hapticSuccess, warning: hapticWarning, light: hapticLight } = useHaptics();
 
   const userLat = liveLocation?.lat || 19.1258;
   const userLng = liveLocation?.lng || 73.0004;
@@ -139,28 +143,45 @@ export const MobileHome: React.FC<Props> = ({
         <div className="space-y-4">
           {/* Location & All-Clear Header */}
           <div className="p-4 bg-emerald-950/30 border border-emerald-500/30 rounded-2xl text-emerald-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+            <div 
+              onClick={onOpenLocationSearch}
+              className="flex items-center gap-3 cursor-pointer flex-1 mr-2"
+              title="Click to calibrate GPS or search exact location"
+            >
+              <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold shrink-0">
                 <ShieldCheck size={24} weight="fill" />
               </div>
-              <div>
+              <div className="overflow-hidden">
                 <div className="text-[11px] font-semibold tracking-wider text-emerald-400 uppercase flex items-center gap-1.5">
                   <MapPin size={12} weight="bold" />
-                  <span className="truncate max-w-[190px]">{liveLocation?.locationName || "Detecting Live GPS..."}</span>
-                  {liveLocation?.isLiveGPS && (
+                  <span className="truncate max-w-[170px]">{liveLocation?.locationName || "Detecting Live GPS..."}</span>
+                  {liveLocation?.isPinned ? (
+                    <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1 py-0.2 rounded font-mono shrink-0">
+                      PINNED
+                    </span>
+                  ) : liveLocation?.isLiveGPS ? (
                     <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1 py-0.2 rounded font-mono shrink-0">
                       LIVE GPS
                     </span>
-                  )}
+                  ) : null}
                 </div>
                 <div className="text-sm font-bold text-slate-100">
-                  All Clear — No Hazards Nearby
+                  All Clear — Safe Zone
                 </div>
               </div>
             </div>
-            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-1 rounded-full border border-emerald-500/30 shrink-0">
-              Safe Zone
-            </span>
+
+            <button
+              onClick={() => {
+                hapticLight();
+                onOpenLocationSearch?.();
+              }}
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 rounded-xl text-[10px] font-bold flex items-center gap-1 shrink-0 transition-transform active:scale-95 shadow-sm"
+              title="Calibrate GPS or change city/area"
+            >
+              <Crosshair size={13} weight="bold" />
+              <span>Exact GPS</span>
+            </button>
           </div>
 
           {/* Calm Weather & Environmental Conditions */}

@@ -10,7 +10,8 @@ import {
   CaretLeft, 
   ArrowsClockwise, 
   MapPin, 
-  MapPinLine
+  MapPinLine,
+  Crosshair
 } from '@phosphor-icons/react';
 import { SimulationResult } from '../../types';
 import { fetchStreetWalkingRoute, WalkingRouteResult } from '../../services/routingService';
@@ -75,6 +76,7 @@ interface Props {
   };
   onSetLocation?: (lat: number, lng: number, name?: string) => void;
   onResetGPS?: () => void;
+  onOpenLocationSearch?: () => void;
   escapeTimer?: EscapeTimerState;
 }
 
@@ -83,6 +85,7 @@ export const MobileMap: React.FC<Props> = ({
   liveLocation, 
   onSetLocation, 
   onResetGPS, 
+  onOpenLocationSearch,
   escapeTimer 
 }) => {
   const [selectedShelter, setSelectedShelter] = useState<number>(0);
@@ -213,13 +216,23 @@ export const MobileMap: React.FC<Props> = ({
                   ? `📍 GPS: ${liveLocation.locationName}` 
                   : "Pedestrian street routing active"}
             </span>
+            {onOpenLocationSearch && (
+              <button 
+                onClick={onOpenLocationSearch}
+                className="text-amber-400 hover:text-amber-300 underline font-bold shrink-0 ml-1 flex items-center gap-0.5"
+                title="Search city or calibrate GPS"
+              >
+                <Crosshair size={11} weight="bold" />
+                <span>Change / GPS</span>
+              </button>
+            )}
             {liveLocation?.isPinned && onResetGPS && (
               <button 
                 onClick={onResetGPS}
-                className="text-amber-400 hover:text-amber-300 underline font-bold shrink-0 ml-1"
+                className="text-slate-400 hover:text-slate-200 underline font-semibold shrink-0 ml-1"
                 title="Reset to device GPS sensor"
               >
-                Reset GPS
+                Reset
               </button>
             )}
           </div>
