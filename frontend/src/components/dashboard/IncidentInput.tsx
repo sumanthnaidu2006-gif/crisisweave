@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DisasterType, SeverityLevel, DisasterEvent } from '../../types';
 import { Warning, MapPin, Target, Crosshair, Sparkle } from '@phosphor-icons/react';
+import { useHaptics } from '../../hooks/useHaptics';
 
 interface IncidentInputProps {
   onSimulate: (event: DisasterEvent) => void;
@@ -26,6 +27,7 @@ const IncidentInput: React.FC<IncidentInputProps> = ({
   selectedTarget,
   liveLocation 
 }) => {
+  const { light: hapticLight, medium: hapticMedium, heavy: hapticHeavy } = useHaptics();
   const [formData, setFormData] = useState<Partial<DisasterEvent>>({
     type: DisasterType.FLOOD,
     severity: SeverityLevel.HIGH,
@@ -48,6 +50,7 @@ const IncidentInput: React.FC<IncidentInputProps> = ({
         locationName: selectedTarget.locationName
       }));
       setJustImported(true);
+      hapticLight();
       const timer = setTimeout(() => setJustImported(false), 3500);
       return () => clearTimeout(timer);
     }
@@ -55,6 +58,7 @@ const IncidentInput: React.FC<IncidentInputProps> = ({
 
   const handleUseLiveGPS = () => {
     if (liveLocation) {
+      hapticMedium();
       setFormData(prev => ({
         ...prev,
         latitude: parseFloat(liveLocation.lat.toFixed(5)),
@@ -68,6 +72,7 @@ const IncidentInput: React.FC<IncidentInputProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    hapticHeavy();
     onSimulate(formData as DisasterEvent);
   };
 
@@ -106,12 +111,15 @@ const IncidentInput: React.FC<IncidentInputProps> = ({
               <button
                 type="button"
                 key={sev}
-                onClick={() => setFormData({...formData, severity: sev})}
-                className={`flex-1 py-1 px-0 text-center rounded border text-[11px] font-bold ${
+                onClick={() => {
+                  hapticLight();
+                  setFormData({...formData, severity: sev});
+                }}
+                className={`touch-tactile-sm flex-1 py-1 px-0 text-center rounded border text-[11px] font-bold ${
                   formData.severity === sev 
                     ? sev === 'CATASTROPHIC' || sev === 'CRITICAL'
-                      ? 'bg-destructive/20 border-destructive text-destructive' 
-                      : 'bg-primary/20 border-primary text-primary'
+                      ? 'bg-destructive/20 border-destructive text-destructive shadow-sm' 
+                      : 'bg-primary/20 border-primary text-primary shadow-sm'
                     : 'bg-background border-border text-muted-foreground hover:bg-muted'
                 }`}
               >
@@ -192,7 +200,7 @@ const IncidentInput: React.FC<IncidentInputProps> = ({
         <button 
           type="submit" 
           disabled={isLoading}
-          className="mt-auto w-full bg-primary hover:bg-amber-600 text-background font-orbitron font-bold py-2.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
+          className="touch-tactile mt-auto w-full bg-primary hover:bg-amber-400 text-slate-950 font-orbitron font-extrabold py-2.5 rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25"
         >
           {isLoading ? (
             <span className="animate-spin inline-block w-4 h-4 border-2 border-background border-t-transparent rounded-full"></span>

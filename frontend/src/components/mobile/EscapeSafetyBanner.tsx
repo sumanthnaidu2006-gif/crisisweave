@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { 
   Hourglass, 
   CheckCircle, 
@@ -8,6 +8,7 @@ import {
   Robot
 } from '@phosphor-icons/react';
 import { EscapeTimerState } from '../../hooks/useEscapeSafetyTimer';
+import { useHaptics } from '../../hooks/useHaptics';
 
 interface Props {
   timer: EscapeTimerState;
@@ -15,6 +16,17 @@ interface Props {
 }
 
 export const EscapeSafetyBanner: React.FC<Props> = ({ timer, onOpenAICall }) => {
+  const { success: hapticSuccess, medium: hapticMedium, light: hapticLight, warning: hapticWarning } = useHaptics();
+
+  // Trigger warning haptic when a warning becomes active
+  useEffect(() => {
+    if (timer.warningLevel === 'warning_2') {
+      hapticWarning();
+    } else if (timer.warningLevel === 'warning_1') {
+      hapticWarning();
+    }
+  }, [timer.warningLevel]);
+
   if (!timer.isActive && timer.warningLevel === 'none') return null;
 
   const isWarning2 = timer.warningLevel === 'warning_2';
@@ -60,24 +72,33 @@ export const EscapeSafetyBanner: React.FC<Props> = ({ timer, onOpenAICall }) => 
 
           <div className="flex items-center gap-2 mt-3.5">
             <button
-              onClick={timer.confirmSafe}
-              className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 transition-transform active:scale-95"
+              onClick={() => {
+                hapticSuccess();
+                timer.confirmSafe();
+              }}
+              className="touch-tactile flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20"
             >
               <CheckCircle size={16} weight="bold" />
               I AM SAFE / CHECK IN
             </button>
 
             <button
-              onClick={() => timer.extendTimer(60)}
-              className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-600 flex items-center gap-1"
+              onClick={() => {
+                hapticMedium();
+                timer.extendTimer(60);
+              }}
+              className="touch-tactile-sm px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-600 flex items-center gap-1"
             >
               <PlusCircle size={15} />
               +1 Min
             </button>
 
             <button
-              onClick={onOpenAICall}
-              className="px-3 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl flex items-center gap-1"
+              onClick={() => {
+                hapticMedium();
+                onOpenAICall();
+              }}
+              className="touch-tactile px-3 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl flex items-center gap-1"
               title="Call 108 immediately"
             >
               <Robot size={15} weight="bold" />
@@ -122,16 +143,22 @@ export const EscapeSafetyBanner: React.FC<Props> = ({ timer, onOpenAICall }) => 
 
         <div className="flex items-center gap-1.5">
           <button
-            onClick={timer.confirmSafe}
-            className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1 transition-transform active:scale-95"
+            onClick={() => {
+              hapticSuccess();
+              timer.confirmSafe();
+            }}
+            className="touch-tactile px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1"
           >
             <ShieldCheck size={14} weight="bold" />
             I'm Safe
           </button>
 
           <button
-            onClick={timer.cancelTimer}
-            className="p-1.5 text-slate-500 hover:text-slate-300 text-xs"
+            onClick={() => {
+              hapticLight();
+              timer.cancelTimer();
+            }}
+            className="touch-tactile-sm p-1.5 text-slate-500 hover:text-slate-300 text-xs"
             title="Cancel Watch"
           >
             <XCircle size={16} />

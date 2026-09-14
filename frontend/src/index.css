@@ -1,21 +1,22 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import 'leaflet/dist/leaflet.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --color-background: #0B1120;
-  --color-card: #151F32;
-  --color-muted: #1E293B;
-  --color-border: #334155;
-  --color-foreground: #F8FAFC;
-  --color-muted-foreground: #94A3B8;
-  --color-primary: #F59E0B;
-  --color-secondary: #FBBF24;
-  --color-accent: #8B5CF6;
-  --color-destructive: #EF4444;
-  --color-success: #10B981;
+  --color-background: #030712;
+  --color-card: #0b1222;
+  --color-muted: #111c34;
+  --color-border: #1e293b;
+  --color-foreground: #f8fafc;
+  --color-muted-foreground: #94a3b8;
+  --color-primary: #f59e0b;
+  --color-secondary: #fbbf24;
+  --color-accent: #8b5cf6;
+  --color-destructive: #ef4444;
+  --color-success: #10b981;
+  --color-info: #06b6d4;
 }
 
 body {
@@ -23,47 +24,118 @@ body {
   color: var(--color-foreground);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
 }
 
-/* Custom utility classes */
+/* UI/UX Pro Max Tactical Tokens & Micro-Interactions */
 .tactical-card {
   background-color: var(--color-card);
   border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   padding: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
+
+.tactical-card:hover {
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+/* Tactile touch and click spring effects */
+.touch-tactile {
+  transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+  user-select: none;
+}
+.touch-tactile:active {
+  transform: scale(0.96);
+}
+
+.touch-tactile-sm {
+  transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s ease;
+  cursor: pointer;
+  user-select: none;
+}
+.touch-tactile-sm:active {
+  transform: scale(0.94);
+}
+
+/* Tactical Glow Effects */
 .glow-amber {
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.25);
 }
+.glow-amber-lg {
+  box-shadow: 0 0 35px rgba(245, 158, 11, 0.45);
+}
+.glow-emerald {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+.glow-cyan {
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+}
+.glow-red {
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.45);
+}
+
+/* Live Tactical Status & Animations */
 .status-pulse {
   animation: pulse 2s infinite;
 }
-.section-header {
-  font-family: 'Orbitron', sans-serif;
-  color: var(--color-primary);
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+
+.radar-sweep {
+  position: relative;
+  overflow: hidden;
+}
+.radar-sweep::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.08), transparent);
+  transform: translateX(-100%);
+  animation: radar 3s infinite linear;
+}
+
+@keyframes radar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 @keyframes pulse {
   0% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: 0.4; }
   100% { opacity: 1; }
 }
 
-/* Custom scrollbar for tactical feel */
+.section-header {
+  font-family: 'Orbitron', sans-serif;
+  color: var(--color-primary);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Custom Tactical Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: var(--color-background);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: #1e293b;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-muted-foreground);
+  background: #334155;
 }
+
+/* Accessibility: Respect Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

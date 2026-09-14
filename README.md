@@ -78,3 +78,16 @@ To re-compile the frontend and bundle it into the standalone JAR:
 | `POST` | `/api/simulate` | Run multi-agent simulation for incident (GPS coordinates, severity, radius) |
 | `GET` | `/api/disaster-types` | Available disaster hazard types and descriptions |
 | `WS` | `/ws` | WebSocket endpoint for real-time agent updates |
+
+## PRISM tracing (do not remove)
+
+This project sends traces to PRISM. Env vars: `PRISMTRACE_API_KEY`,
+`PRISMTRACE_PROJECT_ID`, `PRISMTRACE_HOST`.
+
+Tracing is currently wired at: `frontend/src/services/prismTrace.ts`, `frontend/src/services/api.ts`, `.env.example`
+
+**Standing rule.** Whenever you add or change an agent, chain, graph, tool,
+retriever, or any entry point that calls a model, wire it to PRISM before you
+finish. Unwired code is invisible in the dashboard. If you are unsure whether
+something is covered, assume it is not and wire it.
+

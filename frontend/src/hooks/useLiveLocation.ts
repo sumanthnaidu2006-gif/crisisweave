@@ -37,7 +37,8 @@ export const reverseGeocodeNominatim = async (lat: number, lon: number): Promise
 export const useLiveLocation = (): LiveLocation & { 
   refreshLocation: () => void;
   setManualPin: (lat: number, lng: number, customName?: string) => Promise<void>;
-  resetToDeviceGPS: () => void;
+  resetToDeviceGPS: () => Promise<boolean>;
+  requestDeviceGPS: () => Promise<{ lat: number; lng: number; locationName: string } | null>;
 } => {
   const [location, setLocation] = useState<LiveLocation>(() => {
     // Check if user previously pinned a custom exact location
@@ -61,7 +62,7 @@ export const useLiveLocation = (): LiveLocation & {
     return {
       lat: 19.1258,
       lng: 73.0004,
-      locationName: "Acquiring live GPS location...",
+      locationName: "Loading region network location...",
       isLiveGPS: false,
       isLoading: true,
       error: null,
@@ -71,7 +72,7 @@ export const useLiveLocation = (): LiveLocation & {
 
   const watchIdRef = useRef<number | null>(null);
 
-  // Fallback to real IP-based geolocation if device GPS chip is initializing or restricted
+  // Fallback to real IP-based geolocation (ZERO permission prompt required)
   const fetchRealIPLocation = async () => {
     try {
       const res = await fetch('https://freeipapi.com/api/json');
@@ -86,8 +87,8 @@ export const useLiveLocation = (): LiveLocation & {
               ...prev,
               lat: data.latitude,
               lng: data.longitude,
-              locationName: area || "Current Location",
-              isLiveGPS: true,
+              locationName: area || "Current Region (IP Verified)",
+              isLiveGPS: false, // Network based, not hardware GPS
               accuracyMeters: 500,
               isLoading: false
             };
@@ -96,59 +97,88 @@ export const useLiveLocation = (): LiveLocation & {
       }
     } catch (e) {
       console.warn("IP Geolocation fallback failed:", e);
+      setLocation(prev => ({
+        ...prev,
+        isLoading: false,
+        locationName: prev.locationName || "Default Region"
+      }));
     }
   };
 
-  const startLiveTracking = () => {
-    // If pinned, don't overwrite with IP unless explicitly reset
-    const savedPin = localStorage.getItem('crisisweave_user_pin');
-    if (savedPin) {
-      return;
-    }
-
-    // 1. Fetch real IP coordinates immediately
-    fetchRealIPLocation();
-
-    // 2. Start high-accuracy device GPS tracking
-    if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
+  /**
+   * Explicitly requests high-accuracy device GPS permission.
+   * This is ONLY called when the user initiates an action requiring hardware GPS (e.g. emergency call, recalibrate button).
+   */
+  const requestDeviceGPS = (): Promise<{ lat: number; lng: number; locationName: string } | null> => {
+    return new Promise((resolve) => {
+      if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+        resolve(null);
+        return;
       }
 
-      watchIdRef.current = navigator.geolocation.watchPosition(
+      setLocation(prev => ({ ...prev, isLoading: true }));
+
+      navigator.geolocation.getCurrentPosition(
         async (position) => {
           const { latitude, longitude, accuracy } = position.coords;
           const placeName = await reverseGeocodeNominatim(latitude, longitude);
 
-          setLocation(prev => {
-            if (prev.isPinned) return prev;
-            return {
-              lat: latitude,
-              lng: longitude,
-              locationName: placeName,
-              isLiveGPS: true,
-              accuracyMeters: Math.round(accuracy),
-              isLoading: false,
-              isPinned: false,
-              error: null
-            };
-          });
+          const updated: LiveLocation = {
+            lat: latitude,
+            lng: longitude,
+            locationName: placeName,
+            isLiveGPS: true,
+            accuracyMeters: Math.round(accuracy),
+            isLoading: false,
+            isPinned: false,
+            error: null
+          };
+
+          setLocation(updated);
+
+          // Once permission is granted, maintain background live watch
+          if (watchIdRef.current !== null) {
+            navigator.geolocation.clearWatch(watchIdRef.current);
+          }
+          watchIdRef.current = navigator.geolocation.watchPosition(
+            async (pos) => {
+              const name = await reverseGeocodeNominatim(pos.coords.latitude, pos.coords.longitude);
+              setLocation(prev => {
+                if (prev.isPinned) return prev;
+                return {
+                  lat: pos.coords.latitude,
+                  lng: pos.coords.longitude,
+                  locationName: name,
+                  isLiveGPS: true,
+                  accuracyMeters: Math.round(pos.coords.accuracy),
+                  isLoading: false,
+                  isPinned: false,
+                  error: null
+                };
+              });
+            },
+            (err) => console.warn("Watch GPS error:", err.message),
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+          );
+
+          resolve({ lat: latitude, lng: longitude, locationName: placeName });
         },
         (err) => {
-          console.warn("Device GPS error, maintaining live network location:", err.message);
+          console.warn("Device GPS denied or unavailable:", err.message);
           setLocation(prev => ({
             ...prev,
             isLoading: false,
             error: err.message
           }));
+          resolve(null);
         },
         {
           enableHighAccuracy: true,
-          timeout: 12000,
-          maximumAge: 5000
+          timeout: 10000,
+          maximumAge: 0
         }
       );
-    }
+    });
   };
 
   const setManualPin = async (lat: number, lng: number, customName?: string) => {
@@ -173,18 +203,23 @@ export const useLiveLocation = (): LiveLocation & {
     setLocation(newLoc);
   };
 
-  const resetToDeviceGPS = () => {
+  const resetToDeviceGPS = async (): Promise<boolean> => {
     localStorage.removeItem('crisisweave_user_pin');
     setLocation(prev => ({
       ...prev,
       isPinned: false,
       isLoading: true
     }));
-    startLiveTracking();
+    const result = await requestDeviceGPS();
+    return !!result;
   };
 
+  // Zero permission prompts at start: only passive IP lookup or cached pin
   useEffect(() => {
-    startLiveTracking();
+    const savedPin = localStorage.getItem('crisisweave_user_pin');
+    if (!savedPin) {
+      fetchRealIPLocation();
+    }
 
     return () => {
       if (watchIdRef.current !== null && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
@@ -195,7 +230,8 @@ export const useLiveLocation = (): LiveLocation & {
 
   return {
     ...location,
-    refreshLocation: startLiveTracking,
+    refreshLocation: fetchRealIPLocation,
+    requestDeviceGPS,
     setManualPin,
     resetToDeviceGPS
   };

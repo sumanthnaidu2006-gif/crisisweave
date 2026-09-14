@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { DisasterEvent, SimulationResult, ScenarioTemplate } from '../types';
 import { mockBhopalSimulation, mockScenarios } from './mockData';
+import { traceSimulationRun } from './prismTrace';
 
 const BASE_URL = typeof window !== 'undefined' && window.location.port === '8080'
   ? '/api'
@@ -41,14 +42,16 @@ export const fetchScenario = async (id: string): Promise<ScenarioTemplate | unde
 };
 
 export const runSimulation = async (event: DisasterEvent): Promise<SimulationResult> => {
+  const startTime = Date.now();
+  let result: SimulationResult;
   try {
     const response = await apiClient.post('/simulate', event);
-    return response.data;
+    result = response.data;
   } catch (error) {
     console.warn('Backend unavailable, returning mock simulation data');
     // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 2000));
-    return {
+    result = {
       ...mockBhopalSimulation,
       id: `sim-${Date.now()}`,
       event: {
@@ -58,6 +61,14 @@ export const runSimulation = async (event: DisasterEvent): Promise<SimulationRes
       }
     };
   }
+
+  const latencyMs = Date.now() - startTime;
+  // Asynchronously dispatch live trace to PRISM
+  traceSimulationRun(event, result, latencyMs).catch(err => {
+    console.warn('[PRISM] Trace dispatch caught:', err);
+  });
+
+  return result;
 };
 
 export const fetchAgents = async () => {

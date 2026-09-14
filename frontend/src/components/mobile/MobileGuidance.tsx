@@ -10,20 +10,64 @@ import {
   Megaphone,
   Lifebuoy
 } from '@phosphor-icons/react';
+import { useHaptics } from '../../hooks/useHaptics';
 
 export const MobileGuidance: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'flood' | 'cbrn' | 'earthquake'>('flood');
+  const { light: hapticLight, success: hapticSuccess } = useHaptics();
   const [checklist, setChecklist] = useState({
-    water: true,
-    meds: true,
+    water: false,
+    meds: false,
     powerbank: false,
     docs: false,
-    torch: true,
+    torch: false,
     whistle: false
   });
 
+  // Load user checklist preference if saved, else default to all deselected
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crisisweave_gobag_checklist');
+      if (saved) {
+        try {
+          setChecklist(JSON.parse(saved));
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+  }, []);
+
   const toggleCheck = (item: keyof typeof checklist) => {
-    setChecklist(prev => ({ ...prev, [item]: !prev[item] }));
+    const nextVal = !checklist[item];
+    if (nextVal) {
+      hapticSuccess();
+    } else {
+      hapticLight();
+    }
+    setChecklist(prev => {
+      const updated = { ...prev, [item]: nextVal };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('crisisweave_gobag_checklist', JSON.stringify(updated));
+      }
+      return updated;
+    });
+  };
+
+  const deselectAll = () => {
+    hapticLight();
+    const cleared = {
+      water: false,
+      meds: false,
+      powerbank: false,
+      docs: false,
+      torch: false,
+      whistle: false
+    };
+    setChecklist(cleared);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('crisisweave_gobag_checklist', JSON.stringify(cleared));
+    }
   };
 
   return (
@@ -41,25 +85,34 @@ export const MobileGuidance: React.FC = () => {
         {/* Hazard Selector Pills */}
         <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
           <button
-            onClick={() => setActiveTab('flood')}
-            className={`px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition-colors ${
-              activeTab === 'flood' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-300'
+            onClick={() => {
+              hapticLight();
+              setActiveTab('flood');
+            }}
+            className={`touch-tactile-sm px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition-colors ${
+              activeTab === 'flood' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:text-white'
             }`}
           >
             🌊 Flood & Cyclone
           </button>
           <button
-            onClick={() => setActiveTab('cbrn')}
-            className={`px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition-colors ${
-              activeTab === 'cbrn' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
+            onClick={() => {
+              hapticLight();
+              setActiveTab('cbrn');
+            }}
+            className={`touch-tactile-sm px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition-colors ${
+              activeTab === 'cbrn' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:text-white'
             }`}
           >
             🧪 Gas & Chemical
           </button>
           <button
-            onClick={() => setActiveTab('earthquake')}
-            className={`px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition-colors ${
-              activeTab === 'earthquake' ? 'bg-red-500 text-slate-950' : 'bg-slate-800 text-slate-300'
+            onClick={() => {
+              hapticLight();
+              setActiveTab('earthquake');
+            }}
+            className={`touch-tactile-sm px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition-colors ${
+              activeTab === 'earthquake' ? 'bg-red-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:text-white'
             }`}
           >
             🏚️ Earthquake
@@ -209,9 +262,20 @@ export const MobileGuidance: React.FC = () => {
             <FirstAid size={18} className="text-emerald-400" />
             Quick Go-Bag Checklist
           </h3>
-          <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full">
-            {Object.values(checklist).filter(Boolean).length}/6 Packed
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full">
+              {Object.values(checklist).filter(Boolean).length}/6 Packed
+            </span>
+            {Object.values(checklist).some(Boolean) && (
+              <button
+                onClick={deselectAll}
+                className="text-[10px] text-slate-400 hover:text-amber-400 font-semibold underline transition-colors"
+                title="Deselect all items"
+              >
+                Clear All
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2 text-xs">

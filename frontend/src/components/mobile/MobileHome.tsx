@@ -18,6 +18,7 @@ import { saveAlert } from '../../services/alertStore';
 import { useLiveWeather } from '../../hooks/useLiveWeather';
 import { EscapeTimerState } from '../../hooks/useEscapeSafetyTimer';
 import { DeviceStatus } from '../../hooks/useDeviceStatus';
+import { useHaptics } from '../../hooks/useHaptics';
 
 interface Props {
   simulationResult: SimulationResult | null;
@@ -25,6 +26,7 @@ interface Props {
   onTriggerAlert: (alertData: any) => void;
   onClearAlert: () => void;
   onTriggerAICall?: () => void;
+  onInitiateCall?: (target: { number: string; name: string; isAI?: boolean }) => void;
   liveLocation?: {
     lat: number;
     lng: number;
@@ -41,6 +43,7 @@ export const MobileHome: React.FC<Props> = ({
   onTriggerAlert,
   onClearAlert,
   onTriggerAICall,
+  onInitiateCall,
   liveLocation,
   escapeTimer,
   deviceStatus
@@ -48,6 +51,7 @@ export const MobileHome: React.FC<Props> = ({
   const [sosActive, setSosActive] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [quickMsgSent, setQuickMsgSent] = useState<string | null>(null);
+  const { emergencySOS, medium: hapticMedium, success: hapticSuccess, warning: hapticWarning } = useHaptics();
 
   const userLat = liveLocation?.lat || 19.1258;
   const userLng = liveLocation?.lng || 73.0004;
@@ -57,17 +61,20 @@ export const MobileHome: React.FC<Props> = ({
 
   const handleSosClick = () => {
     if (sosActive) {
+      hapticMedium();
       setSosActive(false);
       setCountdown(null);
       return;
     }
 
+    hapticWarning();
     setCountdown(3);
     const interval = setInterval(() => {
       setCountdown((prev) => {
         if (prev === null || prev <= 1) {
           clearInterval(interval);
           setSosActive(true);
+          emergencySOS();
           // Automatically save SOS alert to history
           saveAlert({
             title: "Emergency Distress Beacon Activated",
@@ -78,12 +85,14 @@ export const MobileHome: React.FC<Props> = ({
           });
           return null;
         }
+        hapticWarning();
         return prev - 1;
       });
     }, 1000);
   };
 
   const handleQuickDistress = (msg: string) => {
+    hapticSuccess();
     setQuickMsgSent(msg);
     saveAlert({
       title: "Distress Message Sent: " + msg,
@@ -97,6 +106,7 @@ export const MobileHome: React.FC<Props> = ({
 
   // Live Hazard Incident Reporting using Citizen's Actual Live Coordinates
   const reportLiveHazard = (type: DisasterType, name: string, advice: string) => {
+    hapticWarning();
     const locName = liveLocation?.locationName || "Current Location";
     const hazardEvent = {
       id: 'hazard-' + Date.now(),
@@ -178,6 +188,42 @@ export const MobileHome: React.FC<Props> = ({
             </div>
           </div>
 
+          {/* 14-Day Regional Weather & Hazard Forecast + AI Swarm Q&A Callout */}
+          <div className="p-3.5 bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-slate-800 rounded-2xl shadow-lg space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">📅</span>
+                <div>
+                  <div className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                    14-Day Regional Prediction
+                    <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-bold border border-amber-500/30">
+                      Active
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-400">
+                    Day 1–3 peak surge forecasted • Proactive safety alerts ready
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                onClick={() => onNavigateTab('brain')}
+                className="touch-tactile py-2 px-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-[11px] font-bold text-amber-300 flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <span>📅 14-Day Outlook</span>
+              </button>
+
+              <button
+                onClick={() => onNavigateTab('brain')}
+                className="touch-tactile py-2 px-2.5 bg-gradient-to-r from-purple-900/60 to-indigo-900/60 hover:from-purple-800/80 hover:to-indigo-800/80 border border-purple-500/40 rounded-xl text-[11px] font-bold text-purple-200 flex items-center justify-center gap-1.5 transition-colors shadow-md"
+              >
+                <span>🤖 Ask AI Swarm</span>
+              </button>
+            </div>
+          </div>
+
           {/* Simple Ready SOS Button */}
           <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl flex flex-col items-center justify-center text-center shadow-xl">
             <div className="text-xs font-semibold tracking-widest text-slate-400 uppercase mb-3">
@@ -234,32 +280,56 @@ export const MobileHome: React.FC<Props> = ({
               1-Tap Emergency Call
             </h3>
             <div className="grid grid-cols-3 gap-2">
-              <a
-                href="tel:108"
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  hapticMedium();
+                  if (onInitiateCall) {
+                    onInitiateCall({ number: '108', name: '108 Ambulance Dispatch' });
+                  } else {
+                    window.location.href = 'tel:108';
+                  }
+                }}
                 className="p-3 bg-red-950/40 hover:bg-red-900/50 border border-red-500/30 rounded-xl text-center flex flex-col items-center gap-1 transition-transform active:scale-95"
               >
                 <span className="text-xl">🚑</span>
                 <span className="text-xs font-bold text-red-200">108</span>
                 <span className="text-[9px] text-slate-400">Ambulance</span>
-              </a>
+              </button>
 
-              <a
-                href="tel:101"
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  hapticMedium();
+                  if (onInitiateCall) {
+                    onInitiateCall({ number: '101', name: '101 Fire & Rescue' });
+                  } else {
+                    window.location.href = 'tel:101';
+                  }
+                }}
                 className="p-3 bg-amber-950/40 hover:bg-amber-900/50 border border-amber-500/30 rounded-xl text-center flex flex-col items-center gap-1 transition-transform active:scale-95"
               >
                 <span className="text-xl">🚒</span>
                 <span className="text-xs font-bold text-amber-200">101</span>
                 <span className="text-[9px] text-slate-400">Fire & Rescue</span>
-              </a>
+              </button>
 
-              <a
-                href="tel:100"
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  hapticMedium();
+                  if (onInitiateCall) {
+                    onInitiateCall({ number: '100', name: '100 Police Emergency' });
+                  } else {
+                    window.location.href = 'tel:100';
+                  }
+                }}
                 className="p-3 bg-blue-950/40 hover:bg-blue-900/50 border border-blue-500/30 rounded-xl text-center flex flex-col items-center gap-1 transition-transform active:scale-95"
               >
                 <span className="text-xl">👮</span>
                 <span className="text-xs font-bold text-blue-200">100</span>
                 <span className="text-[9px] text-slate-400">Police</span>
-              </a>
+              </button>
             </div>
           </div>
 
@@ -411,7 +481,13 @@ export const MobileHome: React.FC<Props> = ({
             </div>
 
             <button
-              onClick={onTriggerAICall}
+              onClick={() => {
+                if (onInitiateCall) {
+                  onInitiateCall({ number: '108', name: '108 AI Emergency Dispatch', isAI: true });
+                } else {
+                  onTriggerAICall?.();
+                }
+              }}
               className="px-3.5 py-2 bg-red-600 hover:bg-red-500 text-white font-black text-xs rounded-xl shadow-md shadow-red-600/40 flex items-center gap-1.5 transition-transform active:scale-95 shrink-0 ml-2"
             >
               <Robot size={16} weight="bold" />

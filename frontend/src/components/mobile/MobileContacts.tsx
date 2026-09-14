@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   PhoneCall, 
   User, 
@@ -13,18 +13,21 @@ import {
   WarningOctagon
 } from '@phosphor-icons/react';
 import { getUserContacts, addUserContact, deleteUserContact, EmergencyContact } from '../../services/contactStore';
+import { useHaptics } from '../../hooks/useHaptics';
 
 interface Props {
   onTriggerAICall?: () => void;
+  onInitiateCall?: (target: { number: string; name: string; isAI?: boolean }) => void;
 }
 
-export const MobileContacts: React.FC<Props> = ({ onTriggerAICall }) => {
+export const MobileContacts: React.FC<Props> = ({ onTriggerAICall, onInitiateCall }) => {
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [relation, setRelation] = useState('');
   const [alertSent, setAlertSent] = useState(false);
+  const { light: hapticLight, medium: hapticMedium, success: hapticSuccess, emergencySOS } = useHaptics();
 
   useEffect(() => {
     setContacts(getUserContacts());
@@ -34,6 +37,7 @@ export const MobileContacts: React.FC<Props> = ({ onTriggerAICall }) => {
     e.preventDefault();
     if (!name.trim() || !phone.trim()) return;
 
+    hapticSuccess();
     const newContact = addUserContact({
       name: name.trim(),
       phone: phone.trim(),
@@ -48,11 +52,13 @@ export const MobileContacts: React.FC<Props> = ({ onTriggerAICall }) => {
   };
 
   const handleDelete = (id: string) => {
+    hapticLight();
     deleteUserContact(id);
     setContacts(prev => prev.filter(c => c.id !== id));
   };
 
   const handleBroadcast = () => {
+    emergencySOS();
     setAlertSent(true);
     setTimeout(() => setAlertSent(false), 3500);
   };
@@ -111,8 +117,15 @@ export const MobileContacts: React.FC<Props> = ({ onTriggerAICall }) => {
         </p>
 
         <button
-          onClick={onTriggerAICall}
-          className="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-red-600/30 transition-transform active:scale-95"
+          onClick={() => {
+            hapticMedium();
+            if (onInitiateCall) {
+              onInitiateCall({ number: '108', name: '108 AI Emergency Dispatch', isAI: true });
+            } else {
+              onTriggerAICall?.();
+            }
+          }}
+          className="touch-tactile w-full py-2.5 bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-red-600/30"
         >
           <Robot size={18} weight="bold" />
           Start AI Emergency Call to 108
@@ -283,13 +296,21 @@ export const MobileContacts: React.FC<Props> = ({ onTriggerAICall }) => {
               </div>
             </div>
 
-            <a
-              href={`tel:${service.number}`}
-              className="px-3 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1 shrink-0 ml-2"
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                hapticMedium();
+                if (onInitiateCall) {
+                  onInitiateCall({ number: service.number, name: service.name });
+                } else {
+                  window.location.href = `tel:${service.number}`;
+                }
+              }}
+              className="touch-tactile px-3 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1 shrink-0 ml-2"
             >
               <PhoneCall size={14} weight="bold" />
               Call {service.number}
-            </a>
+            </button>
           </div>
         ))}
       </div>

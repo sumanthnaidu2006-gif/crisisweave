@@ -1,6 +1,7 @@
 import React from 'react';
 import { ScenarioTemplate } from '../../types';
 import { Flask, ShieldWarning, Waves } from '@phosphor-icons/react';
+import { useHaptics } from '../../hooks/useHaptics';
 
 interface ScenarioSelectorProps {
   scenarios: ScenarioTemplate[];
@@ -9,6 +10,7 @@ interface ScenarioSelectorProps {
 }
 
 const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({ scenarios, onSelect, isLoading }) => {
+  const { heavy: hapticHeavy } = useHaptics();
   const getIcon = (title: string) => {
     if (title.includes('Bhopal')) return <Flask size={48} weight="duotone" className="text-orange-500" />;
     if (title.includes('Chernobyl')) return <ShieldWarning size={48} weight="duotone" className="text-green-500" />;
@@ -70,9 +72,12 @@ const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({ scenarios, onSelect
             </div>
 
             <button 
-              onClick={() => onSelect(scenario.id)}
+              onClick={() => {
+                hapticHeavy();
+                onSelect(scenario.id);
+              }}
               disabled={isLoading}
-              className={`w-full py-3 rounded font-orbitron font-bold text-background transition-colors flex justify-center items-center gap-2 ${getButtonClass(scenario.title)}`}
+              className={`touch-tactile w-full py-3 rounded font-orbitron font-extrabold text-background transition-all flex justify-center items-center gap-2 shadow-lg ${getButtonClass(scenario.title)}`}
             >
               {isLoading ? (
                 <span className="animate-spin inline-block w-4 h-4 border-2 border-background border-t-transparent rounded-full"></span>
