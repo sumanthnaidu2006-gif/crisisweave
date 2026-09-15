@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useMap, useMapEvents } from 'react-leaflet';
 import { MapContainer, TileLayer, Circle, Popup, Marker } from 'react-leaflet';
 import L from 'leaflet';
-import { MapPin, Crosshair } from '@phosphor-icons/react';
+import { MapPin, Crosshair, Target } from '@phosphor-icons/react';
 import { SimulationResult, DisasterType } from '../../types';
 import { reverseGeocodeNominatim } from '../../hooks/useLiveLocation';
 
@@ -50,10 +50,16 @@ const citizenMarkerIcon = L.divIcon({
   iconAnchor: [13, 13]
 });
 
-// Helper component to change view when location changes
-const ChangeView = ({ center, zoom }: { center: [number, number], zoom: number }) => {
+// Helper component to change view when location changes with smooth flyTo & invalidateSize
+const ChangeView = ({ center, zoom }: { center: [number, number]; zoom: number }) => {
   const map = useMap();
-  map.setView(center, zoom);
+  React.useEffect(() => {
+    map.setView(center, zoom, { animate: true });
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [center[0], center[1], zoom, map]);
   return null;
 };
 
@@ -78,6 +84,42 @@ const getDisasterColor = (type: DisasterType) => {
   }
 };
 
+const getZoomForRadius = (radiusKm: number): number => {
+  if (radiusKm >= 150) return 6;
+  if (radiusKm >= 80) return 7;
+  if (radiusKm >= 30) return 9;
+  if (radiusKm >= 15) return 10;
+  if (radiusKm >= 5) return 11;
+  return 12;
+};
+
+const createDisasterEpicenterIcon = (type: DisasterType) => {
+  let symbol = '⚠️';
+  let color = '#EF4444';
+  if (type === DisasterType.CHEMICAL_LEAK) { symbol = '☣️'; color = '#F59E0B'; }
+  else if (type === DisasterType.NUCLEAR_ACCIDENT) { symbol = '☢️'; color = '#10B981'; }
+  else if (type === DisasterType.FLOOD) { symbol = '🌊'; color = '#3B82F6'; }
+  else if (type === DisasterType.WILDFIRE) { symbol = '🔥'; color = '#EF4444'; }
+  else if (type === DisasterType.EARTHQUAKE) { symbol = '🌋'; color = '#E11D48'; }
+
+  return L.divIcon({
+    className: 'custom-disaster-marker',
+    html: `
+      <div style="position: relative; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+        <div style="position: absolute; width: 44px; height: 44px; border: 2px solid ${color}; border-radius: 50%; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite; opacity: 0.65;"></div>
+        <div style="position: absolute; width: 32px; height: 32px; background: rgba(15, 23, 42, 0.95); border: 2px solid ${color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 16px ${color}; font-size: 15px;">
+          ${symbol}
+        </div>
+        <div style="position: absolute; top: -14px; background: ${color}; color: #0f172a; font-size: 8px; font-weight: 900; font-family: monospace; padding: 1px 4px; border-radius: 3px; letter-spacing: 0.5px; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">
+          EPICENTER
+        </div>
+      </div>
+    `,
+    iconSize: [44, 44],
+    iconAnchor: [22, 22]
+  });
+};
+
 const DisasterMap: React.FC<DisasterMapProps> = ({ 
   simulationResult, 
   liveLocation,
@@ -86,20 +128,38 @@ const DisasterMap: React.FC<DisasterMapProps> = ({
 }) => {
   const [isResolving, setIsResolving] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [activeFocus, setActiveFocus] = useState<'epicenter' | 'target' | 'citizen' | null>(null);
 
   const defaultCenter: [number, number] = [19.1258, 73.0004]; // Navi Mumbai / User location
-  const center: [number, number] = simulationResult 
-    ? [simulationResult.event.latitude, simulationResult.event.longitude]
-    : selectedTarget
+  
+  const simLat = simulationResult?.event ? Number(simulationResult.event.latitude) : null;
+  const simLng = simulationResult?.event ? Number(simulationResult.event.longitude) : null;
+  const hasSim = simLat !== null && simLng !== null && !isNaN(simLat) && !isNaN(simLng);
+
+  const center: [number, number] = activeFocus === 'citizen' && liveLocation
+    ? [liveLocation.lat, liveLocation.lng]
+    : activeFocus === 'target' && selectedTarget
       ? [selectedTarget.lat, selectedTarget.lng]
-      : liveLocation
-        ? [liveLocation.lat, liveLocation.lng]
-        : defaultCenter;
+      : hasSim
+        ? [simLat!, simLng!]
+        : selectedTarget
+          ? [selectedTarget.lat, selectedTarget.lng]
+          : liveLocation
+            ? [liveLocation.lat, liveLocation.lng]
+            : defaultCenter;
+
+  const simRadiusKm = simulationResult?.event?.affectedRadiusKm ? Number(simulationResult.event.affectedRadiusKm) : 15;
+  const zoom = hasSim && activeFocus !== 'citizen'
+    ? getZoomForRadius(simRadiusKm)
+    : selectedTarget && !hasSim
+      ? 12
+      : 12;
 
   const color = simulationResult ? getDisasterColor(simulationResult.event.type) : '#EF4444';
-  const radius = simulationResult ? simulationResult.event.affectedRadiusKm * 1000 : 0; // in meters
+  const radius = hasSim ? simRadiusKm * 1000 : 0; // in meters
 
   const handleMapClick = async (lat: number, lng: number) => {
+    setActiveFocus('target');
     setIsResolving(true);
     const locName = await reverseGeocodeNominatim(lat, lng);
     setIsResolving(false);
@@ -107,25 +167,37 @@ const DisasterMap: React.FC<DisasterMapProps> = ({
     if (onSelectLocation) {
       onSelectLocation(lat, lng, locName);
     }
-    setImportStatus(`Target Loaded: ${lat.toFixed(4)}, ${lng.toFixed(4)} (${locName})`);
+    setImportStatus(`Target: ${lat.toFixed(4)}, ${lng.toFixed(4)} (${locName})`);
     setTimeout(() => setImportStatus(null), 4500);
   };
 
   const handleImportCitizenLocation = () => {
     if (liveLocation) {
+      setActiveFocus('citizen');
       handleMapClick(liveLocation.lat, liveLocation.lng);
     }
   };
+
+  const handleFocusEpicenter = () => {
+    if (hasSim) {
+      setActiveFocus('epicenter');
+    }
+  };
+
+  // Determine whether to display target marker (hide if right on epicenter to avoid overlapping clutter)
+  const isTargetAtEpicenter = hasSim && selectedTarget && 
+    Math.abs(selectedTarget.lat - simLat!) < 0.001 && 
+    Math.abs(selectedTarget.lng - simLng!) < 0.001;
 
   return (
     <div className="tactical-card h-[400px] w-full p-0 overflow-hidden relative">
       <MapContainer 
         center={center} 
-        zoom={simulationResult ? 10 : 12} 
+        zoom={zoom} 
         style={{ height: '100%', width: '100%', backgroundColor: '#0F172A', cursor: 'crosshair' }}
         zoomControl={false}
       >
-        <ChangeView center={center} zoom={simulationResult ? 10 : 12} />
+        <ChangeView center={center} zoom={zoom} />
         <MapClickHandler onMapClick={handleMapClick} />
 
         <TileLayer
@@ -133,8 +205,8 @@ const DisasterMap: React.FC<DisasterMapProps> = ({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         
-        {/* Tactical Target Marker placed by Admin Click/Touch */}
-        {selectedTarget && (
+        {/* Tactical Target Marker placed by Commander Click/Touch */}
+        {selectedTarget && !isTargetAtEpicenter && (
           <Marker position={[selectedTarget.lat, selectedTarget.lng]} icon={targetReticleIcon}>
             <Popup className="tactical-popup">
               <div className="bg-slate-900 text-slate-100 p-2 border border-red-500 rounded text-xs font-mono">
@@ -168,35 +240,55 @@ const DisasterMap: React.FC<DisasterMapProps> = ({
           </Marker>
         )}
 
-        {/* Disaster Impact Zones */}
-        {simulationResult && (
+        {/* Disaster Impact Zones & Epicenter Pin */}
+        {hasSim && simulationResult && (
           <>
-            {/* Outer Zone */}
+            {/* Outer Perimeter */}
             <Circle 
-              center={center} 
+              center={[simLat!, simLng!]} 
               radius={radius} 
-              pathOptions={{ color: '#EF4444', fillColor: '#EF4444', fillOpacity: 0.15, weight: 1 }} 
+              pathOptions={{ color: '#EF4444', fillColor: '#EF4444', fillOpacity: 0.15, weight: 1.5 }} 
             />
-            {/* Mid Zone */}
+            {/* Mid High-Risk Zone */}
             <Circle 
-              center={center} 
+              center={[simLat!, simLng!]} 
               radius={radius * 0.6} 
-              pathOptions={{ color: '#F97316', fillColor: '#F97316', fillOpacity: 0.15, weight: 1 }} 
+              pathOptions={{ color: '#F97316', fillColor: '#F97316', fillOpacity: 0.18, weight: 1.5 }} 
             />
-            {/* Inner Zone */}
+            {/* Inner Core Danger Zone */}
             <Circle 
-              center={center} 
-              radius={radius * 0.2} 
-              pathOptions={{ color: color, fillColor: color, fillOpacity: 0.2, weight: 2 }} 
+              center={[simLat!, simLng!]} 
+              radius={radius * 0.25} 
+              pathOptions={{ color: color, fillColor: color, fillOpacity: 0.28, weight: 2 }} 
+            />
+
+            {/* HIGH-TECH EPICENTER MARKER */}
+            <Marker 
+              position={[simLat!, simLng!]} 
+              icon={createDisasterEpicenterIcon(simulationResult.event.type)}
             >
               <Popup className="tactical-popup">
-                <div className="bg-card text-foreground p-2 border border-border rounded">
-                  <h3 className="font-orbitron font-bold text-primary">{simulationResult.event.locationName}</h3>
-                  <p className="text-sm">Type: {simulationResult.event.type}</p>
-                  <p className="text-sm">Severity: {simulationResult.event.severity}</p>
+                <div className="bg-slate-900 text-slate-100 p-2.5 border border-amber-500/80 rounded-xl text-xs max-w-xs shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-slate-700/80 pb-1 mb-1.5">
+                    <span className="font-orbitron font-bold text-amber-400 text-sm">
+                      {simulationResult.event.locationName}
+                    </span>
+                    <span className="text-[10px] font-mono font-black bg-red-500/20 text-red-400 border border-red-500/40 px-1.5 py-0.2 rounded">
+                      {simulationResult.event.severity}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-300 font-sans leading-tight mb-1.5">
+                    {simulationResult.event.description}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 text-[10px] font-mono bg-slate-950/80 p-1.5 rounded border border-slate-800">
+                    <div><span className="text-slate-500">TYPE:</span> <strong className="text-amber-300">{simulationResult.event.type}</strong></div>
+                    <div><span className="text-slate-500">RADIUS:</span> <strong className="text-red-400">{simRadiusKm} km</strong></div>
+                    <div><span className="text-slate-500">AFFECTED:</span> <strong className="text-cyan-400">{simulationResult.estimatedTotalAffected?.toLocaleString() || 'Surge'}</strong></div>
+                    <div><span className="text-slate-500">SWARM:</span> <strong className="text-emerald-400">{Math.round((simulationResult.prismConfidence || 0.9) * 100)}% Conf</strong></div>
+                  </div>
                 </div>
               </Popup>
-            </Circle>
+            </Marker>
           </>
         )}
       </MapContainer>
@@ -222,17 +314,29 @@ const DisasterMap: React.FC<DisasterMapProps> = ({
           </div>
         </div>
 
-        {/* 1-Tap Quick Import Citizen Live Location */}
-        {liveLocation && (
-          <button
-            onClick={handleImportCitizenLocation}
-            className="pointer-events-auto bg-blue-600/90 hover:bg-blue-500 text-white font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 shadow-lg border border-blue-400/50 transition-colors"
-            title="Import live citizen device coordinates into target"
-          >
-            <MapPin size={14} weight="fill" />
-            <span>Import Citizen GPS</span>
-          </button>
-        )}
+        {/* 1-Tap Quick Action Buttons */}
+        <div className="flex items-center gap-1.5 pointer-events-auto">
+          {hasSim && (
+            <button
+              onClick={handleFocusEpicenter}
+              className="bg-red-600/90 hover:bg-red-500 text-white font-bold text-xs px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-lg border border-red-400/50 transition-colors"
+              title="Recenter map on disaster epicenter"
+            >
+              <Target size={13} weight="bold" />
+              <span>Epicenter</span>
+            </button>
+          )}
+          {liveLocation && (
+            <button
+              onClick={handleImportCitizenLocation}
+              className="bg-blue-600/90 hover:bg-blue-500 text-white font-bold text-xs px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-lg border border-blue-400/50 transition-colors"
+              title="Import live citizen device coordinates into target"
+            >
+              <MapPin size={13} weight="fill" />
+              <span>Citizen GPS</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Legend */}

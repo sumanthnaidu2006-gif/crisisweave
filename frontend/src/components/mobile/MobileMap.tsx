@@ -59,8 +59,12 @@ const MapEventsHandler = ({ onMapClick }: { onMapClick: (lat: number, lng: numbe
 const ChangeView = ({ center, zoom }: { center: [number, number], zoom: number }) => {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, zoom);
-  }, [center[0], center[1], zoom]);
+    map.setView(center, zoom, { animate: true });
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [center[0], center[1], zoom, map]);
   return null;
 };
 
@@ -104,34 +108,66 @@ export const MobileMap: React.FC<Props> = ({
   } | null>(null);
 
   // Real user GPS / pinned coordinates
-  const userLat = liveLocation?.lat || simulationResult?.event?.latitude || 19.1258;
-  const userLng = liveLocation?.lng || simulationResult?.event?.longitude || 73.0004;
+  const userLat = liveLocation?.lat || 19.1258;
+  const userLng = liveLocation?.lng || 73.0004;
 
-  // Real shelters dynamically relative to user's real coordinates
+  // Real Simulation coordinates and hazard zone
+  const simLat = simulationResult?.event ? Number(simulationResult.event.latitude) : null;
+  const simLng = simulationResult?.event ? Number(simulationResult.event.longitude) : null;
+  const hasSim = simLat !== null && simLng !== null && !isNaN(simLat) && !isNaN(simLng);
+  const simRadiusMeters = (simulationResult?.event?.affectedRadiusKm ? Number(simulationResult.event.affectedRadiusKm) : 15) * 1000;
+  const simType = simulationResult?.event?.type || 'EMERGENCY';
+  const simName = simulationResult?.event?.locationName || 'Incident Sector';
+
+  // Toggle to switch view between Citizen GPS location and Simulated Disaster Epicenter
+  const [focusMode, setFocusMode] = useState<'user' | 'disaster'>(hasSim ? 'disaster' : 'user');
+
+  // Auto-switch to disaster focus when a new simulation occurs
+  useEffect(() => {
+    if (hasSim) {
+      setFocusMode('disaster');
+    }
+  }, [simulationResult?.id, simulationResult?.event?.latitude, simulationResult?.event?.longitude]);
+
+  // Center coordinate and zoom determination
+  const baseLat = focusMode === 'disaster' && hasSim ? simLat! : userLat;
+  const baseLng = focusMode === 'disaster' && hasSim ? simLng! : userLng;
+  const mapCenter: [number, number] = pinnedLocation 
+    ? [pinnedLocation.lat, pinnedLocation.lng]
+    : [baseLat, baseLng];
+  const mapZoom = focusMode === 'disaster' && hasSim
+    ? ((simRadiusMeters / 1000) >= 100 ? 7 : (simRadiusMeters / 1000) >= 30 ? 9 : 11)
+    : 14;
+
+  const shelterOffset = hasSim && focusMode === 'disaster'
+    ? Math.max(0.015, (simRadiusMeters / 1000) * 0.008)
+    : 0.007;
+
+  // Real shelters dynamically positioned outside hazard zone
   const shelters = [
     {
       id: 1,
-      name: "St. Jude Safe Community Hall",
+      name: focusMode === 'disaster' && hasSim ? `${simName} High-Ground Safe Relief Camp` : "St. Jude Safe Community Hall",
       type: "Primary High-Ground Shelter",
-      lat: userLat + 0.0065,
-      lng: userLng + 0.0055,
+      lat: baseLat + shelterOffset,
+      lng: baseLng + shelterOffset * 0.85,
       capacity: "140 beds available",
       supplies: "Clean drinking water, hot meals, doctors on site",
       phone: "+91 98765 43210"
     },
     {
       id: 2,
-      name: "City Stadium Evacuation Complex",
+      name: focusMode === 'disaster' && hasSim ? `${simName} Evacuation Base Complex` : "City Stadium Evacuation Complex",
       type: "Mega Relief Center",
-      lat: userLat + 0.0125,
-      lng: userLng - 0.0075,
+      lat: baseLat - shelterOffset * 1.1,
+      lng: baseLng - shelterOffset * 0.7,
       capacity: "450 beds available",
       supplies: "Emergency triage, helicopter rescue zone",
       phone: "+91 98765 43211"
     }
   ];
 
-  const currentShelter = shelters[selectedShelter];
+  const currentShelter = shelters[selectedShelter] || shelters[0];
 
   // Fetch real street walking route whenever user location, route variant, or shelter changes
   useEffect(() => {
@@ -275,15 +311,49 @@ export const MobileMap: React.FC<Props> = ({
         </div>
       </div>
 
+      {/* 🎯 Simulation Epicenter vs User Location Focus Bar */}
+      {hasSim && (
+        <div className="bg-slate-900/95 border-b border-amber-500/30 px-3 py-1.5 flex items-center justify-between gap-2 z-10 shrink-0 text-xs">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping shrink-0"></span>
+            <span className="text-[11px] font-bold text-amber-300 truncate">
+              {simType}: {simName}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => setFocusMode('disaster')}
+              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+                focusMode === 'disaster'
+                  ? 'bg-red-600 text-white shadow font-black'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              <span>🎯 Disaster Zone</span>
+            </button>
+            <button
+              onClick={() => setFocusMode('user')}
+              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+                focusMode === 'user'
+                  ? 'bg-blue-600 text-white shadow font-black'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              <span>📱 My GPS</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Map Container */}
       <div className="relative flex-1 w-full overflow-hidden bg-slate-950">
         <MapContainer
-          center={[userLat, userLng]}
-          zoom={14}
+          center={mapCenter}
+          zoom={mapZoom}
           scrollWheelZoom={true}
           style={{ height: '100%', width: '100%' }}
         >
-          <ChangeView center={[userLat, userLng]} zoom={14} />
+          <ChangeView center={mapCenter} zoom={mapZoom} />
           <MapEventsHandler onMapClick={handleMapClick} />
 
           {mapLayer === 'street' && (
@@ -329,23 +399,41 @@ export const MobileMap: React.FC<Props> = ({
             </Marker>
           )}
 
-          {/* Danger Hazard Zone (Only if simulation or active disaster) */}
-          {simulationResult && (
+          {/* Real Simulated Disaster Impact Zones & Epicenter Pin */}
+          {hasSim && (
             <>
+              {/* Outer Disaster Perimeter */}
               <Circle
-                center={[userLat - 0.005, userLng - 0.005]}
-                radius={800}
+                center={[simLat!, simLng!]}
+                radius={simRadiusMeters}
                 pathOptions={{
                   color: '#EF4444',
                   fillColor: '#EF4444',
+                  fillOpacity: 0.18,
+                  weight: 2
+                }}
+              />
+              {/* Core High Risk Danger Zone */}
+              <Circle
+                center={[simLat!, simLng!]}
+                radius={simRadiusMeters * 0.4}
+                pathOptions={{
+                  color: '#F97316',
+                  fillColor: '#F97316',
                   fillOpacity: 0.25,
                   weight: 2
                 }}
               />
-              <Marker position={[userLat - 0.005, userLng - 0.005]} icon={dangerIcon}>
+              <Marker position={[simLat!, simLng!]} icon={dangerIcon}>
                 <Popup>
-                  <div className="text-xs text-red-600 font-bold p-1">
-                    ⚠️ Active Danger & Flood Perimeter
+                  <div className="text-xs text-slate-900 font-sans p-1">
+                    <div className="text-red-600 font-bold flex items-center gap-1">
+                      ⚠️ {simType} EPICENTER
+                    </div>
+                    <div className="text-slate-800 text-xs font-semibold mt-0.5">{simName}</div>
+                    <div className="text-[10px] text-slate-600 font-mono mt-0.5">
+                      Radius: {(simRadiusMeters / 1000).toFixed(0)} km • Severity: {simulationResult?.event?.severity || 'CRITICAL'}
+                    </div>
                   </div>
                 </Popup>
               </Marker>

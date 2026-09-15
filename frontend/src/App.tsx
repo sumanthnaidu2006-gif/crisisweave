@@ -132,6 +132,8 @@ function App() {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         sender: 'Controller Command Center'
       });
+
+      setActiveTab('dashboard');
     }
     setIsLoading(false);
   };

@@ -36,6 +36,18 @@ const Dashboard: React.FC<DashboardProps> = ({
     timestamp: number;
   } | null>(null);
 
+  // Sync selected target whenever a simulation or scenario is loaded
+  React.useEffect(() => {
+    if (simulationResult?.event) {
+      setSelectedTarget({
+        lat: simulationResult.event.latitude,
+        lng: simulationResult.event.longitude,
+        locationName: simulationResult.event.locationName,
+        timestamp: Date.now()
+      });
+    }
+  }, [simulationResult?.id, simulationResult?.event?.latitude, simulationResult?.event?.longitude]);
+
   const [controllerTab, setControllerTab] = useState<'dispatch' | 'upload'>('dispatch');
 
   const handleSelectLocation = (lat: number, lng: number, locationName: string) => {
